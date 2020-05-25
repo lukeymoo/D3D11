@@ -10,6 +10,7 @@
 #include "ExceptionHandler.h"
 #include "Camera.h"
 #include "Model.h"
+#include "WorldHandler.h"
 
 #define WRL Microsoft::WRL
 
@@ -30,30 +31,62 @@ class Graphics
 		Graphics(HWND hWnd, int w, int h);
 		~Graphics(void);
 
-		void createDeviceAndSwapChain(void);
-		void initDebugLayer(void);
-		void createRenderTarget(void);
-		void createVertexBuffer(void);
-		void createDepthBuffer(void);
-		void configureInputLayout(void);
-		void initShaders(void);
-		void configureRasterizer(void);
-		void initMatrixBuffer(void);
-		void configureViewport(void);
+		// ensure 16 byte alignment due to using XMMATRIX class objects
+		void* operator new(size_t i)
+		{
+			return _mm_malloc(i, 16);
+		}
+		void operator delete(void* p)
+		{
+			_mm_free(p);
+		}
 
+		void createDeviceAndSwapChain(UINT createDeviceFlags);
+		void createRenderTarget(void);
+		void createDepthBuffer(void);
+		void initShaders(void);
+		void initRasterizer(void);
+		void initViewport(void);
+
+
+		/*
+			WORLD GRID
+		*/
+		void initGrid(void);
+		void toggleDrawGrid(void) noexcept;
+		void setDrawGrid(bool on_off) noexcept;
 		void drawGrid(void);
+
 		void prepareScene(void);
+		void toggleDebugRaster(void) noexcept;
+		void setDebugRaster(bool on_off) noexcept;
 
 		Model model_1;
-
 		Camera camera;
-
+		WorldHandler worldHandler;
 	private:
 		static constexpr float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+		
+		// used internally if DEBUG is defined
+		void initDebugLayer(void);
+
+		D3D_FEATURE_LEVEL d3dFeatureLevels[7] =	{
+			D3D_FEATURE_LEVEL_11_1,
+			D3D_FEATURE_LEVEL_11_0,
+			D3D_FEATURE_LEVEL_10_1,
+			D3D_FEATURE_LEVEL_10_0,
+			D3D_FEATURE_LEVEL_9_3,
+			D3D_FEATURE_LEVEL_9_2,
+			D3D_FEATURE_LEVEL_9_1
+		};
 
 		HWND hWnd;
 		int width;
 		int height;
+		bool fullscreen = false;
+		bool shouldRender = false;
+		bool shouldDrawGrid = true;
+		bool useDebugRaster = false;
 
 		D3D_FEATURE_LEVEL supportedFeatureLevel;
 
@@ -63,7 +96,8 @@ class Graphics
 		WRL::ComPtr<IDXGISwapChain>				pSwap; // encapsulates all buffers
 		WRL::ComPtr<ID3D11Device>				pDevice; // resource handler
 		WRL::ComPtr<ID3D11DeviceContext>		pDeviceContext; // rendering handler
-		WRL::ComPtr<ID3D11RasterizerState>		pRasterizerState; // raster stage control
+		WRL::ComPtr<ID3D11RasterizerState>		pRasterNormalState; // raster fill solid, cull back
+		WRL::ComPtr<ID3D11RasterizerState>		pRasterDebugState; // raster wireframe, cull none
 		WRL::ComPtr<ID3D11DepthStencilState>	pDepthStencilState; // depth testing control
 
 		/*
@@ -71,8 +105,12 @@ class Graphics
 		*/
 		D3D11_VIEWPORT Viewport;
 		WRL::ComPtr<ID3D11RenderTargetView>		pBuffer; // this is our back buffer
-		WRL::ComPtr<ID3D11Buffer>				pConstantBuffer; // used for vertex transformations
 		WRL::ComPtr<ID3D11Texture2D>			pDepthBuffer; // our depth buffer
+		
+		WRL::ComPtr<ID3D11Buffer>				pGridBuffer; // grid vertex buffer
+		int gridVertices = 0;
+		UINT gridByteStrides[1] = { sizeof(Vertex) };
+		UINT gridOffset[1] = { 0 };
 
 		WRL::ComPtr<ID3D11VertexShader>			pVertexShader; // our vertex shader
 		WRL::ComPtr<ID3D11PixelShader>			pPixelShader; // our pixel shader

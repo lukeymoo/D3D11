@@ -19,9 +19,29 @@ struct Vertex
 	} position;
 	struct
 	{
-		float x;
-		float y;
-	} texcoord;
+		float r;
+		float g;
+		float b;
+		float a;
+	} color;
+	Vertex() {
+		position.x = 0.0f;
+		position.y = 0.0f;
+		position.z = 0.0f;
+		color.r = 1.0f;
+		color.g = 1.0f;
+		color.b = 1.0f;
+		color.a = 1.0f;
+	};
+	Vertex(float x, float y, float z, float r, float g, float b, float a) {
+		position.x = x;
+		position.y = y;
+		position.z = z;
+		color.r = r;
+		color.g = g;
+		color.b = b;
+		color.a = a;
+	}
 };
 
 class VertexBuffer

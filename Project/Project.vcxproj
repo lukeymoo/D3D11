@@ -151,12 +151,14 @@
     <ClCompile Include="TimerHandler.cpp" />
     <ClCompile Include="VertexBuffer.cpp" />
     <ClCompile Include="WindowHandler.cpp" />
+    <ClCompile Include="WorldHandler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ExceptionHandler.h" />
     <ClInclude Include="GraphicsHandler.h" />
     <ClInclude Include="KeyboardHandler.h" />
+    <ClInclude Include="WorldHandler.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="MouseHandler.h" />

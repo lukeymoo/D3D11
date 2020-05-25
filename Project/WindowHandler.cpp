@@ -29,6 +29,19 @@ WindowHandler::WindowHandler(int w, int h, const char* t)
 	fpsTimer.startTimer();
 	timer.startTimer();
 
+	DWORD windowStyle = 
+		WS_CAPTION | 
+		WS_SYSMENU |
+		WS_MINIMIZEBOX |
+		WS_VISIBLE;
+
+	// if either dimension is 0, fetch monitor resolution
+	if (width == 0 || height == 0) {
+		windowStyle = WS_VISIBLE | WS_POPUP;
+		width = GetSystemMetrics(SM_CXSCREEN);
+		height = GetSystemMetrics(SM_CYSCREEN);
+	}
+
 	WNDCLASSEXA windowClass;
 	ZeroMemory(&windowClass, sizeof(WNDCLASSEXW));
 
@@ -47,9 +60,6 @@ WindowHandler::WindowHandler(int w, int h, const char* t)
 
 	RegisterClassEx(&windowClass);
 
-	// Adjust window rect will ensure our client region is
-	// the specified width/height and not just the window as whole
-
 	RECT r;
 	r.left = 0;
 	r.top = 0;
@@ -57,7 +67,7 @@ WindowHandler::WindowHandler(int w, int h, const char* t)
 	r.bottom = height;
 	AdjustWindowRect(
 		&r,
-		WS_MINIMIZEBOX | WS_VISIBLE | WS_CAPTION | WS_SYSMENU,
+		windowStyle,
 		false
 	);
 
@@ -65,9 +75,9 @@ WindowHandler::WindowHandler(int w, int h, const char* t)
 		WS_EX_APPWINDOW,
 		"moo_game_engine_class",
 		t,
-		WS_MINIMIZEBOX | WS_VISIBLE | WS_CAPTION | WS_SYSMENU,
-		10,
-		10,
+		windowStyle,
+		0,
+		0,
 		r.right - r.left,
 		r.bottom - r.top,
 		nullptr,
@@ -85,12 +95,12 @@ WindowHandler::WindowHandler(int w, int h, const char* t)
 		);
 	}
 
+	// Show window
+	ShowWindow(hWnd, SW_SHOWDEFAULT);
+
 	// Initialize Graphics Handler now that we've got a
 	// window handle
 	gfx = std::make_unique<Graphics>(hWnd, width, height);
-
-	// Show window
-	ShowWindow(hWnd, SW_SHOWDEFAULT);
 	return;
 }
 
@@ -140,34 +150,59 @@ void WindowHandler::go(void)
 			running = false;
 		}
 
-		// Title bar displays player's X/Y/Z
 		fpsCounter += 1;
 		if (fpsTimer.getElaspedMS() > 1000) {
 			std::ostringstream oss;
 			DirectX::XMFLOAT3 rotation = gfx->camera.getRotationFloat3();
 			oss << "Player Vector: <"
-				<< gfx->camera.getX() << ", " << gfx->camera.getY()
-				<< ", " << gfx->camera.getZ() << ">";
-			oss << "Rotation Vector: <" << rotation.x
-				<< ", " << rotation.y << ", " << rotation.z << "> ";
-			oss << "FPS: " << fpsCounter;
+				<< gfx->camera.getX()
+				<< ", " << gfx->camera.getY()
+				<< ", " << gfx->camera.getZ()
+				<< ">" << std::endl;
+			oss << "Rotation Vector: <"
+				<< rotation.x
+				<< ", " << rotation.y
+				<< ", " << rotation.z
+				<< "> " << std::endl;
+			oss << "FPS: " << fpsCounter << std::endl << std::endl;
 
 			fpsCounter = 0;
 			fpsTimer.restart();
-			SetWindowText(hWnd, oss.str().c_str());
+			OutputDebugString(oss.str().c_str());
 		}
 
 		/*
 			Input handling
 		*/
+		Keyboard::Event kbdEvent = kbd.readKey();
 		Mouse::Event mouseEvent = mouse.read();
-		if (mouse.isLeftPressed()) {
+
+		if (mouse.isLeftPressed() || mouse.isMiddlePressed()) {
 			if (mouseEvent.getType() == Mouse::Event::Type::Move) {
 				std::pair<int, int> md = mouse.getPosDelta();
 				XMVECTOR r = XMVectorSet((md.second * 0.8f), (md.first * 0.8f), 0.0f, 0.0f);
 				gfx->camera.rotate(r * 0.01f);
 			}
 		}
+
+		// toggle world grid
+		if (kbdEvent.isRelease() && kbdEvent.getCode() == 'G') {
+			gfx->toggleDrawGrid();
+		}
+
+		// toggle wireframe mode
+		if (kbdEvent.isRelease() && kbdEvent.getCode() == 'R') {
+			gfx->toggleDebugRaster();
+		}
+
+		// move speed multiplier
+		if (kbd.isKeyPressed(VK_SHIFT)) {
+			gfx->camera.setRunning(true);
+		}
+		else {
+			gfx->camera.setRunning(false);
+		}
+
 		if (kbd.isKeyPressed('W')) {
 			gfx->camera.moveForward(fpsdt);
 		}
@@ -189,13 +224,54 @@ void WindowHandler::go(void)
 			gfx->camera.moveDown(fpsdt);
 		}
 
-		gfx->camera.update();
+		/*
+			MODEL CONTROL
+		*/
+		// movement
+		if (kbd.isKeyPressed('I')) { // forward
+			gfx->model_1.moveForward();
+		}
+		if (kbd.isKeyPressed('K')) { // backward
+			gfx->model_1.moveBackward();
+		}
+		if (kbd.isKeyPressed('J')) { // left
+			gfx->model_1.moveLeft();
+		}
+		if (kbd.isKeyPressed('L')) { // right
+			gfx->model_1.moveRight();
+		}
+		// rotation
+		if (kbd.isKeyPressed('N')) { // rotate left
+			gfx->model_1.rotateLeft();
+		}
+		if (kbd.isKeyPressed('M')) { // rotate right
+			gfx->model_1.rotateRight();
+		}
+
+		/*
+			 This will eventually be replaced by
+			 an in game menu selection of desired resolution
+			 ex: borderless fullscreen | windowed
+			 i may never decide to support exclusive fullscreen
+			at least until I get remote debugging setup
+			debugging EXCLUSIVE fullscreen on single monitor is pain in the ass
+		*/
+		if (kbd.isKeyPressed(VK_BACK)) {
+		}
+
+		if (kbd.isKeyPressed(VK_ESCAPE)) {
+			gfx->shouldRender = false;
+			running = false;
+			PostQuitMessage(0);
+		}
 
 		/*
 			Rendering
 		*/
-		gfx->prepareScene();
-		gfx->pSwap->Present(1, 0);
+		if (gfx->shouldRender) {
+			gfx->prepareScene();
+			gfx->pSwap->Present(0, 0);
+		}
 	}
 	return;
 }

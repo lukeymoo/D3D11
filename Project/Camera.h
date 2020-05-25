@@ -11,6 +11,11 @@ class Camera
 		~Camera(void);
 
 		/*
+			Usually the camera's position will be set by a bound model's
+			position & offset by that model's height (it's eye height)
+		*/
+
+		/*
 			Camera Position control
 		*/
 		// X AXIS
@@ -25,6 +30,9 @@ class Camera
 
 		void rotate(XMVECTOR rotationVector) noexcept;
 
+		// just set's position to specified vector
+		void placeAtModel(XMVECTOR position) noexcept;
+
 		// generates a new matrix with all variables
 		// and translations applied
 		// this ensures if a position/variable was updated - the matrix represents this change
@@ -33,11 +41,17 @@ class Camera
 		/*
 			GETTERS
 		*/
-		XMFLOAT3 getRotationFloat3(void) noexcept;
+		XMFLOAT3 getRotationFloat3(void) const noexcept;
+		XMVECTOR getRotationVector(void) const noexcept;
+		XMVECTOR getPositionVector(void) const noexcept;
 		float getX(void) const noexcept;
 		float getY(void) const noexcept;
 		float getZ(void) const noexcept;
-		XMMATRIX getTransposed(void) noexcept;
+
+		XMMATRIX getView(void) const noexcept;
+		XMMATRIX getProjection(void) const noexcept;
+
+		void setRunning(bool useMultiplier) noexcept;
 
 	private:
 		int viewWidth;
@@ -46,7 +60,9 @@ class Camera
 		XMFLOAT3 lookAt;
 		XMVECTOR upVector;
 		XMVECTOR rotVector;
-		const float moveSpeed = 0.005f;
+		const float speed = 0.005f;
+		float moveSpeed = 0.005f;
+		const float runMultiplier = 4;
 
 		float fovDegrees = 90.0f; // field of view
 		float fovRadians = (fovDegrees / 360.0f) * XM_2PI;
@@ -62,5 +78,6 @@ class Camera
 		const XMVECTOR DEFAULT_LEFT_VECTOR		= XMVectorSet(-1.0f,  0.0f, 0.0f, 0.0f);
 
 		
-		XMMATRIX cBufMatrix;
+		XMMATRIX viewMatrix;
+		XMMATRIX projectionMatrix;
 };

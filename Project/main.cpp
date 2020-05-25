@@ -9,7 +9,7 @@ int WINAPI WinMain(
 )
 {
 	try {
-		WindowHandler wnd(1600, 900, "Moo Game Engine");
+		WindowHandler wnd(0, 0, "Moo Game Engine");
 		wnd.go();
 	}
 	catch (ExceptionHandler& e)

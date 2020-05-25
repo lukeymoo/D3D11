@@ -56,4 +56,4 @@ class WindowHandler
 };
 
 #define WH_EXCEPT(hr) throw WindowHandler::Exception::Exception(__LINE__, __FILE__, hr)
-#define EXCEPT(str) throw WindowHandler::Exception::Exception(str, __LINE__, __FILE__)
+#define W_EXCEPT(str) throw WindowHandler::Exception::Exception(str, __LINE__, __FILE__)

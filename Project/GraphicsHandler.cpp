@@ -1,44 +1,25 @@
 #include "GraphicsHandler.h"
 
-//std::vector<Vertex> vertices = {
-//	{ { -0.5f, 0.0f, 0.100f }, { 1.0f, 1.0f, 1.0f, 1.0f } }, // bottom left front tri	-- 1
-//	{ {  0.0f, 0.7f, 0.100f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // top of front tri		-- 2
-//	{ {  0.5f, 0.0f, 0.100f }, { 0.0f, 1.0f, 0.0f, 1.0f } }, // bottom right front tri	-- 3
-//	{ { -0.5f, 0.0f, 0.500f }, { 0.0f, 0.0f, 1.0f, 1.0f } }, // bottom left back tri	-- 4
-//	{ {  0.0f, 0.7f, 0.500f }, { 1.0f, 1.0f, 0.0f, 1.0f } }, // top of back tri			-- 5
-//	{ {  0.5f, 0.0f, 0.500f }, { 0.0f, 1.0f, 1.0f, 1.0f } }, // bottom right back tri	-- 6
-//};
-//
-//std::vector<unsigned short> indices = { 1, 2, 3, 1, 4, 2, 2, 5, 4, 3, 6, 2, 5, 2, 6, 4, 5, 6 };
-
-D3D_FEATURE_LEVEL d3dFeatureLevels[] =
-{
-	D3D_FEATURE_LEVEL_11_1,
-	D3D_FEATURE_LEVEL_11_0,
-	D3D_FEATURE_LEVEL_10_1,
-	D3D_FEATURE_LEVEL_10_0,
-	D3D_FEATURE_LEVEL_9_3,
-	D3D_FEATURE_LEVEL_9_2,
-	D3D_FEATURE_LEVEL_9_1
-};
-
 // Here we configure DirectX pipeline
 Graphics::Graphics(HWND hw, int w, int h)
 	:
 	hWnd(hw), width(w), height(h), supportedFeatureLevel(D3D_FEATURE_LEVEL_9_1),
 	camera(w, h)
 {
-	createDeviceAndSwapChain();
-	initDebugLayer();
+	createDeviceAndSwapChain(D3D11_CREATE_DEVICE_DEBUG);
 	createRenderTarget();
-	createVertexBuffer();
 	createDepthBuffer();
-	configureInputLayout();
 	initShaders();
-	configureRasterizer();
-	initMatrixBuffer();
-	configureViewport();
+	initRasterizer();
+	initViewport();
+
+	// creates vertices for world grid
+	initGrid();
+
 	model_1.init(pDevice, pDeviceContext, "data\\nanosuit\\nanosuit.obj");
+
+
+	shouldRender = true;
 	return;
 }
 
@@ -47,9 +28,74 @@ Graphics::~Graphics(void)
 	return;
 }
 
-void Graphics::createDeviceAndSwapChain(void)
+void Graphics::initGrid(void)
 {
 	HRESULT hr;
+	// temp containers
+	std::vector<Vertex> grid;
+	D3D11_BUFFER_DESC gridd;
+	D3D11_SUBRESOURCE_DATA griddata;
+	WRL::ComPtr<ID3D11Texture2D> tempGrid;
+
+	ZeroMemory(&gridd, sizeof(D3D11_BUFFER_DESC));
+	ZeroMemory(&griddata, sizeof(D3D11_SUBRESOURCE_DATA));
+
+	if (pGridBuffer != nullptr) {
+		pGridBuffer.Reset();
+	}
+
+	// z plane
+	for (float i = -100.0f; i < 100.0f; i++) {
+		// rows
+		grid.push_back(Vertex(-100.0f, 0.0f, i, 1.0f, 1.0f, 1.0f, 1.0f));
+		grid.push_back(Vertex(100.0f, 0.0f, i, 1.0f, 1.0f, 1.0f, 1.0f));
+
+		// columns
+		grid.push_back(Vertex(i, 0.0f, -100.0f, 0.0f, 1.0f, 0.0f, 1.0f)); // negative z is green
+		grid.push_back(Vertex(i, 0.0f, 100.0f, 0.0f, 0.0f, 1.0f, 1.0f)); // positive z is blue
+	}
+
+	// y plane
+	for (float i = -100.0f; i < 100.0f; i++) {
+		// rows
+		grid.push_back(Vertex(-100.0f, i, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f));
+		grid.push_back(Vertex(100.0f, i, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f));
+
+		// columns
+		grid.push_back(Vertex(i, -100.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f));
+		grid.push_back(Vertex(i, 100.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f));
+	}
+
+	gridVertices = std::size(grid);
+
+	// create buffer to store vertices
+
+	gridd.ByteWidth = sizeof(Vertex) * std::size(grid);
+	gridd.Usage = D3D11_USAGE_DYNAMIC;
+	gridd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	gridd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	gridd.MiscFlags = 0;
+	gridd.StructureByteStride = sizeof(Vertex);
+	griddata.pSysMem = static_cast<void*>(grid.data());
+
+	hr = pDevice->CreateBuffer(&gridd, &griddata, pGridBuffer.GetAddressOf());
+	if (FAILED(hr)) { GH_EXCEPT(hr); }
+	return;
+}
+
+void Graphics::createDeviceAndSwapChain(UINT createDeviceFlags)
+{
+	HRESULT hr;
+
+	if (pDevice != nullptr) {
+		pDevice.Reset();
+	}
+	if (pDeviceContext != nullptr) {
+		pDeviceContext.Reset();
+	}
+	if (pSwap != nullptr) {
+		pSwap.Reset();
+	}
 
 	// Swap chain descriptor
 	DXGI_SWAP_CHAIN_DESC sd;
@@ -64,7 +110,7 @@ void Graphics::createDeviceAndSwapChain(void)
 	sd.SampleDesc.Count = 1;
 	sd.SampleDesc.Quality = 0;
 	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	sd.BufferCount = 2; // non full screen buffer
+	sd.BufferCount = 2;
 	sd.OutputWindow = hWnd;
 	sd.Windowed = true;
 	sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
@@ -75,7 +121,7 @@ void Graphics::createDeviceAndSwapChain(void)
 		nullptr,
 		D3D_DRIVER_TYPE_HARDWARE,
 		nullptr,
-		D3D11_CREATE_DEVICE_DEBUG,
+		createDeviceFlags,
 		d3dFeatureLevels,
 		ARRAYSIZE(d3dFeatureLevels),
 		D3D11_SDK_VERSION,
@@ -89,89 +135,62 @@ void Graphics::createDeviceAndSwapChain(void)
 	if (FAILED(hr)) {
 		GH_EXCEPT(hr);
 	}
+
+#ifdef DEBUG
+	initDebugLayer();
+#endif
+
 	return;
 }
 
 void Graphics::initDebugLayer(void)
 {
 	HRESULT hr;
-	// get handle to debug layer interface
-	hr = pDevice->QueryInterface(__uuidof(ID3D11InfoQueue), reinterpret_cast<void**>(pDebug.ReleaseAndGetAddressOf()));
-	if (FAILED(hr)) {
-		GH_EXCEPT(hr);
+
+	if (pDebug != nullptr) {
+		pDebug.Reset();
 	}
+
+	// get handle to debug layer interface
+	hr = pDevice->QueryInterface(__uuidof(ID3D11InfoQueue), reinterpret_cast<void**>(pDebug.GetAddressOf()));
+	if (FAILED(hr)) { GH_EXCEPT(hr); }
 
 	// configure debugging to be more strict
 	hr = pDebug->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_WARNING, true);
-	if (FAILED(hr)) {
-		GH_EXCEPT(hr);
-	}
+	if (FAILED(hr)) { GH_EXCEPT(hr); }
 	hr = pDebug->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_ERROR, true);
-	if (FAILED(hr)) {
-		GH_EXCEPT(hr);
-	}
+	if (FAILED(hr)) { GH_EXCEPT(hr); }
 	hr = pDebug->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_CORRUPTION, true);
-	if (FAILED(hr)) {
-		GH_EXCEPT(hr);
-	}
+	if (FAILED(hr)) { GH_EXCEPT(hr); }
 	hr = pDebug->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_MESSAGE, true);
-	if (FAILED(hr)) {
-		GH_EXCEPT(hr);
-	}
+	if (FAILED(hr)) { GH_EXCEPT(hr); }
+
 	return;
 }
 
 void Graphics::createRenderTarget(void)
 {
 	HRESULT hr;
+
+	if (pBuffer != nullptr) {
+		pBuffer.Reset();
+	}
+
 	// create render target to back buffer
 	WRL::ComPtr<ID3D11Texture2D> temp;
-	hr = pSwap->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(temp.ReleaseAndGetAddressOf()));
-	if (FAILED(hr)) {
-		GH_EXCEPT(hr);
-	}
+	hr = pSwap->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(temp.GetAddressOf()));
+	if (FAILED(hr)) { GH_EXCEPT(hr); }
 
 	// create render target view from buffer handle
 	hr = pDevice->CreateRenderTargetView(
 		temp.Get(),
 		nullptr,
-		pBuffer.ReleaseAndGetAddressOf()
+		pBuffer.GetAddressOf()
 	);
 
 	if (FAILED(hr)) {
 		GH_EXCEPT(hr);
 	}
-	return;
-}
-
-void Graphics::createVertexBuffer(void)
-{
-	//HRESULT hr;
-	//// Create vertex buffer
-	//D3D11_BUFFER_DESC vb;
-	//D3D11_SUBRESOURCE_DATA vdata;
-	//ZeroMemory(&vb, sizeof(D3D11_BUFFER_DESC));
-	//ZeroMemory(&vdata, sizeof(D3D11_SUBRESOURCE_DATA));
-
-	//vb.Usage = D3D11_USAGE_DEFAULT;
-	//vb.ByteWidth = sizeof(Vertex) * std::size(points);
-	//vb.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	//vb.CPUAccessFlags = 0;
-	//vb.MiscFlags = 0;
-	//vb.StructureByteStride = sizeof(Vertex);
-
-	//vertexByteOffset[0] = 0;
-	//vertexByteStride[0] = sizeof(Vertex);
-
-	//vdata.pSysMem = points;
-	//vdata.SysMemPitch = 0;
-	//vdata.SysMemSlicePitch = 0;
-
-	//// load vertex buffer
-	//hr = pDevice->CreateBuffer(&vb, &vdata, pVertexBuffer.ReleaseAndGetAddressOf());
-	//if (FAILED(hr)) {
-	//	GH_EXCEPT(hr);
-	//}
 	return;
 }
 
@@ -186,6 +205,16 @@ void Graphics::createDepthBuffer(void)
 	ZeroMemory(&db, sizeof(D3D11_BUFFER_DESC));
 	ZeroMemory(&dv, sizeof(D3D11_DEPTH_STENCIL_VIEW_DESC));
 
+	if (pDepthBuffer != nullptr) {
+		pDepthBuffer.Reset();
+	}
+	if (pDepthStencilState != nullptr) {
+		pDepthStencilState.Reset();
+	}
+	if (pDepthStencilView != nullptr) {
+		pDepthStencilView.Reset();
+	}
+
 	// create depth buffer
 	db.Width = width;
 	db.Height = height;
@@ -199,7 +228,7 @@ void Graphics::createDepthBuffer(void)
 	db.CPUAccessFlags = 0;
 	db.MiscFlags = 0;
 
-	hr = pDevice->CreateTexture2D(&db, nullptr, pDepthBuffer.ReleaseAndGetAddressOf());
+	hr = pDevice->CreateTexture2D(&db, nullptr, pDepthBuffer.GetAddressOf());
 	if (FAILED(hr)) { GH_EXCEPT(hr); }
 
 	// create stencil state
@@ -209,18 +238,18 @@ void Graphics::createDepthBuffer(void)
 	dd.StencilEnable = true;
 	dd.StencilReadMask = 0xff;
 	dd.StencilWriteMask = 0xff;
-		// front facing pixels
+		// front facing pixels -- drawn clockwise
 		dd.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
 		dd.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
 		dd.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
 		dd.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-		// back facing pixels
+		// back facing pixels -- drawn counter clockwise
 		dd.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
 		dd.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
 		dd.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
 		dd.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
 
-	hr = pDevice->CreateDepthStencilState(&dd, pDepthStencilState.ReleaseAndGetAddressOf());
+	hr = pDevice->CreateDepthStencilState(&dd, pDepthStencilState.GetAddressOf());
 	if (FAILED(hr)) { GH_EXCEPT(hr); }
 
 	// create depth view
@@ -228,16 +257,11 @@ void Graphics::createDepthBuffer(void)
 	dv.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 	dv.Texture2D.MipSlice = 0;
 
-	hr = pDevice->CreateDepthStencilView(pDepthBuffer.Get(), &dv, pDepthStencilView.ReleaseAndGetAddressOf());
+	hr = pDevice->CreateDepthStencilView(pDepthBuffer.Get(), &dv, pDepthStencilView.GetAddressOf());
 	if (FAILED(hr)) { GH_EXCEPT(hr); }
 
-	// bind state -> pipeline
+	// bind stencil state -> pipeline
 	pDeviceContext->OMSetDepthStencilState(pDepthStencilState.Get(), 1);
-	return;
-}
-
-void Graphics::configureInputLayout(void)
-{
 	return;
 }
 
@@ -246,6 +270,13 @@ void Graphics::initShaders(void)
 	HRESULT hr;
 	WRL::ComPtr<ID3DBlob> vBlob; // vertex shader
 	WRL::ComPtr<ID3DBlob> pBlob; // pixel shader
+
+	if (pVertexShader != nullptr) {
+		pVertexShader.Reset();
+	}
+	if (pPixelShader != nullptr) {
+		pPixelShader.Reset();
+	}
 	
 	// load shader files into blobs
 	hr = D3DReadFileToBlob(L"VertexShader.cso", vBlob.ReleaseAndGetAddressOf());
@@ -254,24 +285,43 @@ void Graphics::initShaders(void)
 	if (FAILED(hr)) { GH_EXCEPT(hr); }
 
 	// create vertex and pixel shader from blobs
-	hr = pDevice->CreateVertexShader(vBlob->GetBufferPointer(), vBlob->GetBufferSize(), nullptr, pVertexShader.ReleaseAndGetAddressOf());
+	hr = pDevice->CreateVertexShader(vBlob->GetBufferPointer(), vBlob->GetBufferSize(), nullptr, pVertexShader.GetAddressOf());
 	if (FAILED(hr)) { GH_EXCEPT(hr); }
-	hr = pDevice->CreatePixelShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, pPixelShader.ReleaseAndGetAddressOf());
+	hr = pDevice->CreatePixelShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, pPixelShader.GetAddressOf());
 	if (FAILED(hr)) { GH_EXCEPT(hr); }
 
-	// bind shaders
+	// bind shaders to pipeline
 	pDeviceContext->VSSetShader(pVertexShader.Get(), nullptr, 0);
 	pDeviceContext->PSSetShader(pPixelShader.Get(), nullptr, 0);
 	return;
 }
 
-void Graphics::configureRasterizer(void)
+void Graphics::initRasterizer(void)
 {
 	HRESULT hr;
 	D3D11_RASTERIZER_DESC rd;
 	ZeroMemory(&rd, sizeof(D3D11_RASTERIZER_DESC));
 
-	//rd.FillMode = D3D11_FILL_WIREFRAME;
+	if (pRasterNormalState != nullptr) {
+		pRasterNormalState.Reset();
+	}
+	if (pRasterDebugState != nullptr) {
+		pRasterDebugState.Reset();
+	}
+
+	rd.FillMode = D3D11_FILL_SOLID;
+	rd.CullMode = D3D11_CULL_BACK;
+	rd.FrontCounterClockwise = false;
+	rd.DepthBias = 0;
+	rd.DepthBiasClamp = 0;
+	rd.SlopeScaledDepthBias = 0.0f;
+	rd.DepthClipEnable = true;
+
+	hr = pDevice->CreateRasterizerState(&rd, pRasterNormalState.GetAddressOf());
+	if (FAILED(hr)) { GH_EXCEPT(hr); }
+
+	// rasterizer debugging state
+	ZeroMemory(&rd, sizeof(D3D11_RASTERIZER_DESC));
 	rd.FillMode = D3D11_FILL_WIREFRAME;
 	rd.CullMode = D3D11_CULL_NONE;
 	rd.FrontCounterClockwise = false;
@@ -280,47 +330,16 @@ void Graphics::configureRasterizer(void)
 	rd.SlopeScaledDepthBias = 0.0f;
 	rd.DepthClipEnable = true;
 
-	hr = pDevice->CreateRasterizerState(&rd, pRasterizerState.ReleaseAndGetAddressOf());
+	hr = pDevice->CreateRasterizerState(&rd, pRasterDebugState.GetAddressOf());
 	if (FAILED(hr)) { GH_EXCEPT(hr); }
 
-	pDeviceContext->RSSetState(pRasterizerState.Get()); // bind rasterizer -> pipeline
+
+	// bind normal raster -> pipeline
+	pDeviceContext->RSSetState(pRasterNormalState.Get());
 	return;
 }
 
-
-void Graphics::initMatrixBuffer(void)
-{
-	HRESULT hr;
-	D3D11_MAPPED_SUBRESOURCE s;
-	D3D11_BUFFER_DESC cbd;
-	ZeroMemory(&s, sizeof(D3D11_MAPPED_SUBRESOURCE));
-	ZeroMemory(&cbd, sizeof(D3D11_BUFFER_DESC));
-
-	cbd = {
-		sizeof(DirectX::XMMATRIX),
-		D3D11_USAGE_DYNAMIC,
-		D3D11_BIND_CONSTANT_BUFFER,
-		D3D11_CPU_ACCESS_WRITE,
-		0,
-		sizeof(float)
-	};
-
-	hr = pDevice->CreateBuffer(&cbd, nullptr, pConstantBuffer.ReleaseAndGetAddressOf());
-	if (FAILED(hr)) { GH_EXCEPT(hr); }
-
-	// copy transform matrix to new buffer
-	hr = pDeviceContext->Map(pConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &s);
-	if (FAILED(hr)) { GH_EXCEPT(hr); }
-
-	CopyMemory(s.pData, &camera.getTransposed(), sizeof(DirectX::XMMATRIX));
-
-	pDeviceContext->Unmap(pConstantBuffer.Get(), 0);
-
-	pDeviceContext->VSSetConstantBuffers(0, 1, pConstantBuffer.GetAddressOf()); // bind buffer -> pipeline
-	return;
-}
-
-void Graphics::configureViewport(void)
+void Graphics::initViewport(void)
 {
 	// configure viewport struct
 	Viewport.TopLeftX = 0;
@@ -332,44 +351,67 @@ void Graphics::configureViewport(void)
 	return;
 }
 
+void Graphics::toggleDrawGrid(void) noexcept
+{
+	shouldDrawGrid = !shouldDrawGrid;
+	return;
+}
+
+void Graphics::toggleDebugRaster(void) noexcept
+{
+	useDebugRaster = !useDebugRaster;
+	return;
+}
+
+void Graphics::setDebugRaster(bool on_off) noexcept
+{
+	useDebugRaster = on_off;
+	return;
+}
+
+void Graphics::setDrawGrid(bool on_off) noexcept
+{
+	shouldDrawGrid = on_off;
+	return;
+}
+
 void Graphics::drawGrid(void)
 {
+	// draw all the grid vertices as line list
+	pDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+	pDeviceContext->IASetVertexBuffers(0, 1, pGridBuffer.GetAddressOf(), gridByteStrides, gridOffset);
+	pDeviceContext->Draw(gridVertices, 0);
 	return;
 }
 
 void Graphics::prepareScene(void)
 {
-	HRESULT hr;
 
 	pDeviceContext->ClearRenderTargetView(pBuffer.Get(), clearColor);
 	pDeviceContext->ClearDepthStencilView(pDepthStencilView.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 1);
-	/*pDeviceContext->IASetVertexBuffers(
-		0,
-		1,
-		pVertexBuffer.GetAddressOf(),
-		vertexByteStride,
-		vertexByteOffset
-	);*/
-	//pDeviceContext->IASetInputLayout(pInputLayout.Get());
-	//pDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
 	pDeviceContext->OMSetRenderTargets(1, pBuffer.GetAddressOf(), pDepthStencilView.Get());
-	pDeviceContext->RSSetState(pRasterizerState.Get());
 	pDeviceContext->RSSetViewports(1, &Viewport);
 
-	// call every model's draw function
-	// note -- model's do not apply any view or projection matrices, only world matrix
-	model_1.draw();
+	// what raster style to use
+	if (useDebugRaster) {
+		pDeviceContext->RSSetState(pRasterDebugState.Get());
+	}
+	else {
+		pDeviceContext->RSSetState(pRasterNormalState.Get());
+	}
 
-	// apply camera view matrix to vertex buffer
-	D3D11_MAPPED_SUBRESOURCE s;
-	ZeroMemory(&s, sizeof(D3D11_MAPPED_SUBRESOURCE));
+	// world grid
+	if (shouldDrawGrid) {
+		drawGrid();
+	}
 
-	hr = pDeviceContext->Map(pConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &s);
-	if (FAILED(hr)) { GH_EXCEPT(hr); }
-
-	CopyMemory(s.pData, &camera.getTransposed(), sizeof(DirectX::XMMATRIX));
-
-	pDeviceContext->Unmap(pConstantBuffer.Get(), 0);
+	/*
+		We pass the Camera's view and projection matrix to the models
+		Every mesh is drawn with the view & projection matrix applied to it's internally stored world matrix
+	*/
+	camera.update();
+	model_1.draw(camera.getView(), camera.getProjection());
 
 	return;
 }

@@ -26,8 +26,6 @@ class Mesh
 		~Mesh(void);
 		
 	public:
-		void draw(void);
-	public:
 		std::vector<Vertex> vertices;
 		std::vector<unsigned short> indices;
 

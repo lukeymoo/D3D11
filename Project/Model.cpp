@@ -1,37 +1,12 @@
 #include "Model.h"
 
-//std::vector<Vertex> vertices = {
-//	// FRONT FACE -- WHITE
-//	{ { -0.5f, 0.0f, 0.100f }, { 1.0f, 1.0f, 1.0f, 1.0f } }, // bottom left front tri	-- 1
-//	{ {  0.0f, 0.7f, 0.100f }, { 1.0f, 1.0f, 1.0f, 1.0f } }, // top of front tri		-- 2
-//	{ {  0.5f, 0.0f, 0.100f }, { 1.0f, 1.0f, 1.0f, 1.0f } }, // bottom right front tri	-- 3
-//
-//	// LEFT FACE -- 2 TRIANGLES -- GREEN
-//	{ { -0.5f, 0.0f, 0.100f }, { 0.0f, 1.0f, 0.0f, 1.0f } }, // bottom left front tri	-- 1
-//	{ { -0.5f, 0.0f, 0.500f }, { 0.0f, 1.0f, 0.0f, 1.0f } }, // bottom left back tri	-- 4
-//	{ {  0.0f, 0.7f, 0.100f }, { 0.0f, 1.0f, 0.0f, 1.0f } }, // top of front tri		-- 2
-//
-//	{ {  0.0f, 0.7f, 0.100f }, { 0.0f, 1.0f, 0.0f, 1.0f } }, // top of front tri		-- 2
-//	{ {  0.0f, 0.7f, 0.500f }, { 0.0f, 1.0f, 0.0f, 1.0f } }, // top of back tri			-- 5
-//	{ { -0.5f, 0.0f, 0.500f }, { 0.0f, 1.0f, 0.0f, 1.0f } }, // bottom left back tri	-- 4
-//
-//	// RIGHT FACE -- 2 TRIANGLES -- BLUE
-//	{ {  0.5f, 0.0f, 0.100f }, { 0.0f, 0.0f, 1.0f, 1.0f } }, // bottom right front tri	-- 3
-//	{ {  0.5f, 0.0f, 0.500f }, { 0.0f, 0.0f, 1.0f, 1.0f } }, // bottom right back tri	-- 6
-//	{ {  0.0f, 0.7f, 0.100f }, { 0.0f, 0.0f, 1.0f, 1.0f } }, // top of front tri		-- 2
-//
-//	{ {  0.0f, 0.7f, 0.500f }, { 0.0f, 0.0f, 1.0f, 1.0f } }, // top of back tri			-- 5
-//	{ {  0.0f, 0.7f, 0.100f }, { 0.0f, 0.0f, 1.0f, 1.0f } }, // top of front tri		-- 2
-//	{ {  0.5f, 0.0f, 0.500f }, { 0.0f, 0.0f, 1.0f, 1.0f } }, // bottom right back tri	-- 6
-//
-//	// BACK FACE -- RED
-//	{ { -0.5f, 0.0f, 0.500f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // bottom left back tri	-- 4
-//	{ {  0.0f, 0.7f, 0.500f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // top of back tri			-- 5
-//	{ {  0.5f, 0.0f, 0.500f }, { 1.0f, 0.0f, 0.0f, 1.0f } }, // bottom right back tri	-- 6
-//};
-
 Model::Model(void)
+	:
+	modelToWorldMatrix(XMMatrixIdentity()),
+	position(XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f))
 {
+	// cannot do initialization here
+	// no device or device context provided until `init()` is called
 	return;
 }
 
@@ -52,6 +27,31 @@ void Model::init(
 	if (!loadModel()) {
 		V_EXCEPT("Failed to load model -> " + model_path);
 	}
+
+	HRESULT hr;
+
+	// create initial world matrix for this model
+	position = XMVectorSet(0.0f, 0.0f, 2.0f, 0.0f);
+	modelToWorldMatrix = XMMatrixTranslationFromVector(position);
+
+	// create and load buffer
+	D3D11_BUFFER_DESC md;
+	D3D11_SUBRESOURCE_DATA mdd;
+	ZeroMemory(&md, sizeof(D3D11_BUFFER_DESC));
+	ZeroMemory(&mdd, sizeof(D3D11_SUBRESOURCE_DATA));
+
+	md.ByteWidth = sizeof(XMMATRIX);
+	md.Usage = D3D11_USAGE_DYNAMIC;
+	md.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	md.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	md.MiscFlags = 0;
+	md.StructureByteStride = sizeof(float);
+	mdd.pSysMem = &modelToWorldMatrix;
+
+	// fill buffer with initial world matrix data
+	hr = device->CreateBuffer(&md, &mdd, pWorldMatrix.GetAddressOf());
+	if (FAILED(hr)) { VH_EXCEPT(hr); }
+
 	model_has_been_initialised = true;
 	return;
 }
@@ -95,10 +95,12 @@ Mesh Model::processMesh(aiMesh* mesh, const aiScene* pScene)
 		vertex.position.y = mesh->mVertices[i].y;
 		vertex.position.z = mesh->mVertices[i].z;
 		
+		vertex.color.r = 0.5f;
 		if (mesh->mTextureCoords[0]) {
-			vertex.texcoord.x = static_cast<float>(mesh->mTextureCoords[0][i].x);
-			vertex.texcoord.y = static_cast<float>(mesh->mTextureCoords[0][i].y);
+			vertex.color.b = mesh->mTextureCoords[0][i].x;
+			vertex.color.g = mesh->mTextureCoords[0][i].y;
 		}
+		vertex.color.a = 1.0f;
 
 		vertices.push_back(vertex);
 	}
@@ -113,12 +115,123 @@ Mesh Model::processMesh(aiMesh* mesh, const aiScene* pScene)
 	return Mesh(device, deviceContext, vertices, indices);
 }
 
-void Model::draw(void)
+XMVECTOR Model::getEyePositionVector(void) const noexcept
+{
+	XMVECTOR eyepos = position;
+	XMVECTOR heightV = XMVectorSet(0.2f, 14.2f, 1.1f, 0.0f);
+	return eyepos + heightV;
+}
+
+// for now we will apply the camera rotation to the model
+void Model::update(void) noexcept
+{
+	XMMATRIX translation = XMMatrixTranslationFromVector(position);
+
+	modelToWorldMatrix = XMMatrixIdentity();
+	modelToWorldMatrix = translation;
+	return;
+}
+
+void Model::draw(XMMATRIX viewMatrix, XMMATRIX projectionMatrix)
 {
 	assert(model_has_been_initialised);
 
-	for (auto i = 0; i < meshes.size(); i++) {
-		meshes[i].draw();
+	HRESULT hr;
+
+	// update prior to draw
+	update();
+
+	// apply camera view & projection matrix
+	XMMATRIX modelToWorldMatrixCurrent = XMMatrixIdentity();
+	modelToWorldMatrixCurrent = modelToWorldMatrix * viewMatrix * projectionMatrix;
+
+	// Transpose it before sending to buffer
+	modelToWorldMatrixCurrent = XMMatrixTranspose(modelToWorldMatrixCurrent);
+
+	D3D11_MAPPED_SUBRESOURCE mappedMatrix;
+	ZeroMemory(&mappedMatrix, sizeof(D3D11_MAPPED_SUBRESOURCE));
+
+	// Update pWorldMatrix buffer & bind to pipeline
+	hr = deviceContext->Map(pWorldMatrix.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedMatrix);
+	if (FAILED(hr)) { VH_EXCEPT(hr); }
+
+	CopyMemory(mappedMatrix.pData, &modelToWorldMatrixCurrent, sizeof(XMMATRIX));
+
+	deviceContext->Unmap(pWorldMatrix.Get(), 0);
+
+	// bind model to world matrix buffer before drawing
+	deviceContext->VSSetConstantBuffers(0, 1, pWorldMatrix.GetAddressOf());
+	deviceContext->IASetPrimitiveTopology(topology);
+
+	for (size_t i = 0; i < meshes.size(); i++) {
+
+		// check if there's any data to draw
+		if (meshes[i].vertexBuffer.getNumIndices() == 0) {
+			continue;
+		}
+		deviceContext->IASetInputLayout(meshes[i].vertexBuffer.m_InputLayout.Get());
+
+		// defines vertices
+		deviceContext->IASetVertexBuffers(
+			0,
+			1,
+			meshes[i].vertexBuffer.m_VertexBuffer.GetAddressOf(),
+			meshes[i].vertexBuffer.byteStride,
+			meshes[i].vertexBuffer.byteOffset
+		);
+
+		// indexed vertices
+		deviceContext->IASetIndexBuffer(
+			meshes[i].vertexBuffer.m_IndexBuffer.Get(),
+			DXGI_FORMAT_R16_UINT,
+			0u
+		);
+
+		deviceContext->DrawIndexed(meshes[i].vertexBuffer.getNumIndices(), 0, 0);
 	}
+	return;
+}
+
+// temp
+
+void Model::moveForward(void) noexcept
+{
+	return;
+}
+
+void Model::moveBackward(void) noexcept
+{
+	return;
+}
+
+void Model::moveLeft(void) noexcept
+{
+	return;
+}
+
+void Model::moveRight(void) noexcept
+{
+	return;
+}
+
+void Model::rotateLeft(void) noexcept
+{
+	return;
+}
+
+void Model::rotateRight(void) noexcept
+{
+	return;
+}
+
+void Model::setTopology(D3D11_PRIMITIVE_TOPOLOGY type) noexcept
+{
+	topology = type;
+	return;
+}
+
+void Model::setStartIndex(int index) noexcept
+{
+	startIndex = index;
 	return;
 }

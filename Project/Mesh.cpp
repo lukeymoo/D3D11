@@ -27,32 +27,3 @@ Mesh::Mesh(const Mesh& mesh)
 	indices = mesh.indices;
 	return;
 }
-
-void Mesh::draw(void)
-{
-	// check if there's any data to draw
-	if (vertexBuffer.getNumIndices() == 0) {
-		return;
-	}
-	deviceContext->IASetInputLayout(vertexBuffer.m_InputLayout.Get());
-	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	// defines vertices
-	deviceContext->IASetVertexBuffers(
-		0,
-		1,
-		vertexBuffer.m_VertexBuffer.GetAddressOf(),
-		vertexBuffer.byteStride,
-		vertexBuffer.byteOffset
-	);
-
-	// indexed vertices
-	deviceContext->IASetIndexBuffer(
-		vertexBuffer.m_IndexBuffer.Get(),
-		DXGI_FORMAT_R16_UINT,
-		0u
-	);
-
-	deviceContext->DrawIndexed(vertexBuffer.getNumIndices(), 0, 0);
-	return;
-}
