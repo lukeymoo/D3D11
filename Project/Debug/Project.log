@@ -1,2 +1,17 @@
-﻿  GraphicsHandler.cpp
+﻿  compilation object save succeeded; see C:\Users\luke\source\repos\Project\Project\PixelShader.cso
+  compilation object save succeeded; see C:\Users\luke\source\repos\Project\Project\VertexShader.cso
+  Camera.cpp
+C:\Users\luke\source\repos\Project\Project\Camera.cpp(297,15): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+  ExceptionHandler.cpp
+  GraphicsHandler.cpp
+  KeyboardHandler.cpp
+  main.cpp
+  Mesh.cpp
+  Model.cpp
+  MouseHandler.cpp
+  TimerHandler.cpp
+  VertexBuffer.cpp
+  WindowHandler.cpp
+  WorldHandler.cpp
+  Generating Code...
   Project.vcxproj -> C:\Users\luke\source\repos\Project\Debug\Project.exe

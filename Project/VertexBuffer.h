@@ -9,6 +9,32 @@
 
 #define WRL Microsoft::WRL
 
+struct tdPoint
+{
+	float x, y, z;
+};
+
+struct Position
+{
+	float x, y, z;
+	Position(float xx, float yy, float zz) {
+		x = xx;
+		y = yy;
+		z = zz;
+	}
+};
+
+struct Color
+{
+	float r, g, b, a;
+	Color(float rr, float gg, float bb, float aa) {
+		r = rr;
+		g = gg;
+		b = bb;
+		a = aa;
+	}
+};
+
 struct Vertex
 {
 	struct
@@ -16,6 +42,11 @@ struct Vertex
 		float x;
 		float y;
 		float z;
+		void operator =(const Position& a) {
+			x = a.x;
+			y = a.y;
+			z = a.z;
+		}
 	} position;
 	struct
 	{
@@ -23,6 +54,12 @@ struct Vertex
 		float g;
 		float b;
 		float a;
+		void operator=(const Color& aa) {
+			r = aa.r;
+			g = aa.g;
+			b = aa.b;
+			a = aa.a;
+		}
 	} color;
 	Vertex() {
 		position.x = 0.0f;
@@ -55,11 +92,19 @@ class VertexBuffer
 		~Exception(void) = default;
 	};
 	public:
+		// constructor for index style drawing
 		VertexBuffer(
 			WRL::ComPtr<ID3D11Device> device,
 			WRL::ComPtr<ID3D11DeviceContext> deviceContext,
 			std::vector<Vertex> vertices,
 			std::vector<unsigned short> indices
+		);
+
+		// no indices constructor
+		VertexBuffer(
+			WRL::ComPtr<ID3D11Device> device,
+			WRL::ComPtr<ID3D11DeviceContext> deviceContext,
+			std::vector<Vertex>* vertices
 		);
 		~VertexBuffer(void);
 
@@ -77,7 +122,6 @@ class VertexBuffer
 
 		WRL::ComPtr<ID3D11Buffer> m_VertexBuffer; // define vertices
 		WRL::ComPtr<ID3D11Buffer> m_IndexBuffer; // define draw order of vertices
-		WRL::ComPtr<ID3D11InputLayout> m_InputLayout;
 };
 
 #define VH_EXCEPT(hr) throw VertexBuffer::Exception::Exception(__LINE__, __FILE__, hr)

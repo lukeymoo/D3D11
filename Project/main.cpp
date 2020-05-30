@@ -9,6 +9,7 @@ int WINAPI WinMain(
 )
 {
 	try {
+		// passing 0 as width or height sets to borderless fullscreen
 		WindowHandler wnd(0, 0, "Moo Game Engine");
 		wnd.go();
 	}

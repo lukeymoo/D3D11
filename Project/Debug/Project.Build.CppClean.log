@@ -1,7 +1,6 @@
 c:\users\luke\source\repos\project\project\debug\vc142.pdb
 c:\users\luke\source\repos\project\project\debug\vc142.idb
 c:\users\luke\source\repos\project\project\debug\worldhandler.obj
-c:\users\luke\source\repos\project\project\debug\windowhandler.obj
 c:\users\luke\source\repos\project\project\debug\vertexbuffer.obj
 c:\users\luke\source\repos\project\project\debug\timerhandler.obj
 c:\users\luke\source\repos\project\project\debug\mousehandler.obj
@@ -12,6 +11,7 @@ c:\users\luke\source\repos\project\project\debug\keyboardhandler.obj
 c:\users\luke\source\repos\project\project\debug\graphicshandler.obj
 c:\users\luke\source\repos\project\project\debug\exceptionhandler.obj
 c:\users\luke\source\repos\project\project\debug\camera.obj
+c:\users\luke\source\repos\project\project\debug\windowhandler.obj
 c:\users\luke\source\repos\project\project\pixelshader.cso
 c:\users\luke\source\repos\project\project\vertexshader.cso
 c:\users\luke\source\repos\project\debug\project.exe

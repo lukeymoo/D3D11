@@ -4,10 +4,12 @@ Camera::Camera(int ww, int wh)
 	: 
 	lookAt(0.0f, 0.0f, 0.0f),
 	viewWidth(ww),
-	viewHeight(wh)
+	viewHeight(wh),
+	projectionMatrix(XMMatrixIdentity()),
+	viewMatrix(XMMatrixIdentity())
 {
 	// set initial camera position
-	position = XMVectorSet(1.0f, 6.0f, -2.0f, 0.0f);
+	position = XMVectorSet(0.0f, 8.0f, -8.0f, 0.0f);
 
 	// set initial lookAt
 	XMVECTOR temp = DEFAULT_FORWARD_VECTOR;
@@ -123,61 +125,125 @@ float Camera::getZ(void) const noexcept
 /*
 	CAMERA MOVEMENT
 */
+// wrapper
+void Camera::move(DIRECTION dir, double fd) noexcept
+{
+	// update frame delta for consistent movement across CPU speeds
+	setFrameDelta(static_cast<float>(fd));
+
+	// determine camera mode
+	switch (cameraMode)
+	{
+		case CAMERA_MODE::FIRSTPERSON:
+		{
+			break;
+		}
+		case CAMERA_MODE::THIRDPERSON:
+		{
+			break;
+		}
+		case CAMERA_MODE::FREELOOK:
+		{
+			// determine direction
+			if (dir == DIRECTION::FORWARD) {
+				moveForward_Free();
+			}
+			if (dir == DIRECTION::BACKWARD) {
+				moveBackward_Free();
+			}
+			if (dir == DIRECTION::LEFT) {
+				moveLeft_Free();
+			}
+			if (dir == DIRECTION::RIGHT) {
+				moveRight_Free();
+			}
+			if (dir == DIRECTION::UP) {
+				moveUp_Free();
+			}
+			if (dir == DIRECTION::DOWN) {
+				moveDown_Free();
+			}
+			break;
+		}
+	}
+	return;
+}
+
 // X AXIS
-void Camera::moveLeft(double fpsdt) noexcept
+void Camera::moveLeft_Free(void) noexcept
 {
 	// get rotation matrix based on camera
 	XMMATRIX rotMatrix = XMMatrixRotationRollPitchYawFromVector(rotVector);
 	XMVECTOR left_vector = XMVector3Transform(DEFAULT_LEFT_VECTOR, rotMatrix);
-	left_vector *= moveSpeed * static_cast<float>(fpsdt);
+	left_vector *= moveSpeed * frameDelta;
 	position += left_vector;
 	return;
 }
 
-void Camera::moveRight(double fpsdt) noexcept
+void Camera::moveRight_Free(void) noexcept
 {
 	XMMATRIX rotMatrix = XMMatrixRotationRollPitchYawFromVector(rotVector);
 	XMVECTOR right_vector = XMVector3Transform(DEFAULT_RIGHT_VECTOR, rotMatrix);
-	right_vector *= moveSpeed * static_cast<float>(fpsdt);;
+	right_vector *= moveSpeed * frameDelta;
 	position += right_vector;
 	return;
 }
 
-// Y AXIS
-void Camera::moveUp(double fpsdt) noexcept
+// WITH PITCH ADJUSTMENT
+// Moves based on new calculated `UP` direction
+// IE -> LOOKING STRAIGHT DOWN (90 DEG) PRODUCES AN `UP` DIRECTION ALONG X-Z PLANE
+//void Camera::moveUp_Free(void) noexcept
+//{
+//	XMMATRIX rotMatrix = XMMatrixRotationRollPitchYawFromVector(rotVector);
+//	XMVECTOR up_vector = XMVector3Transform(DEFAULT_UP_VECTOR, rotMatrix);
+//	up_vector *= moveSpeed * frameDelta;
+//	position += up_vector;
+//	return;
+//}
+
+// WITH PITCH ADJUSTMENT
+// Moves based on new calculated `DOWN` direction
+// IE -> LOOKING STRAIGHT DOWN (90 DEG) PRODUCES AN `DOWN` DIRECTION ALONG X-Z PLANE
+//void Camera::moveDown_Free(void) noexcept
+//{
+//	XMMATRIX rotMatrix = XMMatrixRotationRollPitchYawFromVector(rotVector);
+//	XMVECTOR down_vector = XMVector3Transform(DEFAULT_DOWN_VECTOR, rotMatrix);
+//	down_vector *= moveSpeed * frameDelta;
+//	position += down_vector;
+//	return;
+//}
+
+// simply moves up/down Y axis -- no `up` recalculation
+void Camera::moveUp_Free(void) noexcept
 {
-	XMMATRIX rotMatrix = XMMatrixRotationRollPitchYawFromVector(rotVector);
-	XMVECTOR up_vector = XMVector3Transform(DEFAULT_UP_VECTOR, rotMatrix);
-	up_vector *= moveSpeed * static_cast<float>(fpsdt);;
+	XMVECTOR up_vector = DEFAULT_UP_VECTOR * moveSpeed * frameDelta;
 	position += up_vector;
 	return;
 }
 
-void Camera::moveDown(double fpsdt) noexcept
+void Camera::moveDown_Free(void) noexcept
 {
-	XMMATRIX rotMatrix = XMMatrixRotationRollPitchYawFromVector(rotVector);
-	XMVECTOR down_vector = XMVector3Transform(DEFAULT_DOWN_VECTOR, rotMatrix);
-	down_vector *= moveSpeed * static_cast<float>(fpsdt);;
+	XMVECTOR down_vector = DEFAULT_DOWN_VECTOR * moveSpeed * frameDelta;
 	position += down_vector;
 	return;
 }
 
-// Z AXIS
-void Camera::moveForward(double fpsdt) noexcept
+// NO PITCH ADJUSTMENT
+void Camera::moveForward_Free(void) noexcept
 {
-	XMMATRIX rotMatrix = XMMatrixRotationRollPitchYawFromVector(rotVector);
-	XMVECTOR forward_vector = XMVector3Transform(DEFAULT_FORWARD_VECTOR, rotMatrix);
-	forward_vector *= moveSpeed * static_cast<float>(fpsdt);;
+	XMMATRIX noPitch = XMMatrixRotationRollPitchYawFromVector(XMVectorSetX(rotVector, 0.0f));
+	XMVECTOR forward_vector = XMVector3Transform(DEFAULT_FORWARD_VECTOR, noPitch);
+	forward_vector *= moveSpeed * frameDelta;
 	position += forward_vector;
 	return;
 }
 
-
-void Camera::moveBackward(double fpsdt) noexcept
+// NO PITCH ADJUSTMENT
+void Camera::moveBackward_Free(void) noexcept
 {
-	XMMATRIX rotMatrix = XMMatrixRotationRollPitchYawFromVector(rotVector);
-	XMVECTOR backward_vector = XMVector3Transform(DEFAULT_BACKWARD_VECTOR, rotMatrix);
-	backward_vector *= moveSpeed * static_cast<float>(fpsdt);;
+	XMMATRIX noPitch = XMMatrixRotationRollPitchYawFromVector(XMVectorSetX(rotVector, 0.0f));
+	XMVECTOR backward_vector = XMVector3Transform(DEFAULT_BACKWARD_VECTOR, noPitch);
+	backward_vector *= moveSpeed * frameDelta;
 	position += backward_vector;
 	return;
 }
@@ -211,5 +277,23 @@ void Camera::setRunning(bool isRunning) noexcept
 	else {
 		moveSpeed = speed;
 	}
+	return;
+}
+
+CAMERA_MODE Camera::getCameraStyle(void) const noexcept
+{
+	return cameraMode;
+}
+
+
+void Camera::setCameraStyle(CAMERA_MODE newMode) noexcept
+{
+	cameraMode = newMode;
+	return;
+}
+
+void Camera::setFrameDelta(double dt) noexcept
+{
+	frameDelta = dt;
 	return;
 }

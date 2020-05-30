@@ -30,7 +30,6 @@ class Graphics
 	public:
 		Graphics(HWND hWnd, int w, int h);
 		~Graphics(void);
-
 		// ensure 16 byte alignment due to using XMMATRIX class objects
 		void* operator new(size_t i)
 		{
@@ -41,6 +40,10 @@ class Graphics
 			_mm_free(p);
 		}
 
+	public:
+		/*
+			Initialization code
+		*/
 		void createDeviceAndSwapChain(UINT createDeviceFlags);
 		void createRenderTarget(void);
 		void createDepthBuffer(void);
@@ -48,47 +51,38 @@ class Graphics
 		void initRasterizer(void);
 		void initViewport(void);
 
+		// Draw
+		void prepareScene(void);
+
 
 		/*
-			WORLD GRID
+			Debugging Control
 		*/
-		void initGrid(void);
+		// world grid
+		void initGrid(float x_z_plane_length, float x_y_plane_length);
 		void toggleDrawGrid(void) noexcept;
 		void setDrawGrid(bool on_off) noexcept;
 		void drawGrid(void);
 
-		void prepareScene(void);
+		// raster stage control
 		void toggleDebugRaster(void) noexcept;
 		void setDebugRaster(bool on_off) noexcept;
 
+		// terrain control
+		void setDrawTerrain(bool on_off) noexcept;
+		void toggleDrawTerrain(void) noexcept;
+
+
+	public:
+		/*
+			Objects
+		*/
 		Model model_1;
 		Camera camera;
-		WorldHandler worldHandler;
-	private:
-		static constexpr float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-		
+		std::unique_ptr<WorldHandler> worldHandler;
+	private:		
 		// used internally if DEBUG is defined
 		void initDebugLayer(void);
-
-		D3D_FEATURE_LEVEL d3dFeatureLevels[7] =	{
-			D3D_FEATURE_LEVEL_11_1,
-			D3D_FEATURE_LEVEL_11_0,
-			D3D_FEATURE_LEVEL_10_1,
-			D3D_FEATURE_LEVEL_10_0,
-			D3D_FEATURE_LEVEL_9_3,
-			D3D_FEATURE_LEVEL_9_2,
-			D3D_FEATURE_LEVEL_9_1
-		};
-
-		HWND hWnd;
-		int width;
-		int height;
-		bool fullscreen = false;
-		bool shouldRender = false;
-		bool shouldDrawGrid = true;
-		bool useDebugRaster = false;
-
-		D3D_FEATURE_LEVEL supportedFeatureLevel;
 
 		/*
 			D3D11 Interfaces
@@ -108,9 +102,6 @@ class Graphics
 		WRL::ComPtr<ID3D11Texture2D>			pDepthBuffer; // our depth buffer
 		
 		WRL::ComPtr<ID3D11Buffer>				pGridBuffer; // grid vertex buffer
-		int gridVertices = 0;
-		UINT gridByteStrides[1] = { sizeof(Vertex) };
-		UINT gridOffset[1] = { 0 };
 
 		WRL::ComPtr<ID3D11VertexShader>			pVertexShader; // our vertex shader
 		WRL::ComPtr<ID3D11PixelShader>			pPixelShader; // our pixel shader
@@ -122,6 +113,38 @@ class Graphics
 			Debug
 		*/
 		WRL::ComPtr<ID3D11InfoQueue>		pDebug; // debug layer interface
+
+	private:
+		/*
+			Configuration variables
+		*/
+		static constexpr float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+		HWND hWnd;
+		int width;
+		int height;
+
+		bool fullscreen = false;
+		bool shouldRender = false;
+		bool shouldDrawGrid = false;
+		bool useDebugRaster = false;
+		bool shouldDrawTerrain = false;
+
+		int gridVertices = 0;
+		UINT gridByteStrides[1] = { sizeof(Vertex) };
+		UINT gridOffset[1] = { 0 };
+
+		D3D_FEATURE_LEVEL supportedFeatureLevel;
+
+		// List of supported feature levels
+		D3D_FEATURE_LEVEL d3dFeatureLevels[7] = {
+			D3D_FEATURE_LEVEL_11_1,
+			D3D_FEATURE_LEVEL_11_0,
+			D3D_FEATURE_LEVEL_10_1,
+			D3D_FEATURE_LEVEL_10_0,
+			D3D_FEATURE_LEVEL_9_3,
+			D3D_FEATURE_LEVEL_9_2,
+			D3D_FEATURE_LEVEL_9_1
+		};
 };
 
 #define GH_EXCEPT(hr) throw Graphics::Exception::Exception(__LINE__, __FILE__, hr)

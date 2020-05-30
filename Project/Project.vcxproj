@@ -156,6 +156,7 @@
   <ItemGroup>
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ExceptionHandler.h" />
+    <ClInclude Include="GlobalTypes.h" />
     <ClInclude Include="GraphicsHandler.h" />
     <ClInclude Include="KeyboardHandler.h" />
     <ClInclude Include="WorldHandler.h" />

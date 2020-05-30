@@ -18,12 +18,52 @@ VertexBuffer::Exception::Exception(std::string m, int l, const char* f)
 	return;
 }
 
+// NO INDICES CONSTRUCTOR
+VertexBuffer::VertexBuffer(
+	WRL::ComPtr<ID3D11Device> dV,
+	WRL::ComPtr<ID3D11DeviceContext> dC,
+	std::vector<Vertex>* vertices)
+{
+	device = dV;
+	deviceContext = dC;
+
+	if (device == nullptr) {
+		V_EXCEPT("ID3D11 Device->nullptr");
+	}
+
+	HRESULT hr;
+
+	// Create vertex buffer
+	D3D11_BUFFER_DESC vb;
+	D3D11_SUBRESOURCE_DATA vdata;
+	ZeroMemory(&vb, sizeof(D3D11_BUFFER_DESC));
+	ZeroMemory(&vdata, sizeof(D3D11_SUBRESOURCE_DATA));
+
+	vb.Usage = D3D11_USAGE_DEFAULT;
+	vb.ByteWidth = sizeof(Vertex) * vertices->size();
+	vb.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vb.CPUAccessFlags = 0;
+	vb.MiscFlags = 0;
+	vb.StructureByteStride = sizeof(Vertex);
+	vdata.pSysMem = static_cast<void*>(vertices->data());
+	vdata.SysMemPitch = 0;
+	vdata.SysMemSlicePitch = 0;
+
+	byteOffset[0] = 0;
+	byteStride[0] = sizeof(Vertex);
+	indiceCount = 0;
+
+	hr = device->CreateBuffer(&vb, &vdata, m_VertexBuffer.ReleaseAndGetAddressOf());
+	if (FAILED(hr)) { VH_EXCEPT(hr); }
+
+	return;
+}
+
 VertexBuffer::VertexBuffer(
 	WRL::ComPtr<ID3D11Device> dV,
 	WRL::ComPtr<ID3D11DeviceContext> dC,
 	std::vector<Vertex> vertices,
-	std::vector<unsigned short> indices
-)
+	std::vector<unsigned short> indices)
 {
 	device = dV;
 	deviceContext = dC;
@@ -82,23 +122,6 @@ VertexBuffer::VertexBuffer(
 	hr = D3DReadFileToBlob(L"VertexShader.cso", vertexBlob.ReleaseAndGetAddressOf());
 	if (FAILED(hr)) { VH_EXCEPT(hr); }
 
-	// Create an vertex input layout
-	D3D11_INPUT_ELEMENT_DESC IALayouts[] = {
-		{ "Position", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,   0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "Color", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,  12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
-
-	hr = device->CreateInputLayout(
-		IALayouts,
-		2,
-		reinterpret_cast<void**>(vertexBlob->GetBufferPointer()),
-		vertexBlob->GetBufferSize(),
-		m_InputLayout.ReleaseAndGetAddressOf()
-	);
-	if (FAILED(hr)) { VH_EXCEPT(hr); }
-
-	// Bind layout to pipeline
-	deviceContext->IASetInputLayout(m_InputLayout.Get());
 	return;
 }
 

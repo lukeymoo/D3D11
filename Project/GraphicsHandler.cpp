@@ -14,7 +14,13 @@ Graphics::Graphics(HWND hw, int w, int h)
 	initViewport();
 
 	// creates vertices for world grid
-	initGrid();
+	initGrid(20.0f, 20.0f);
+
+	// initialize world/level handler
+	worldHandler = std::make_unique<WorldHandler>(pDevice, pDeviceContext);
+
+	// load a height map
+	worldHandler->load("conti.bmp");
 
 	model_1.init(pDevice, pDeviceContext, "data\\nanosuit\\nanosuit.obj");
 
@@ -28,9 +34,10 @@ Graphics::~Graphics(void)
 	return;
 }
 
-void Graphics::initGrid(void)
+void Graphics::initGrid(float x_z_plane_length, float x_y_plane_length)
 {
 	HRESULT hr;
+	
 	// temp containers
 	std::vector<Vertex> grid;
 	D3D11_BUFFER_DESC gridd;
@@ -44,26 +51,26 @@ void Graphics::initGrid(void)
 		pGridBuffer.Reset();
 	}
 
-	// z plane
-	for (float i = -100.0f; i < 100.0f; i++) {
+	// x-z plane
+	for (float i = -x_z_plane_length; i < x_z_plane_length; i++) {
 		// rows
-		grid.push_back(Vertex(-100.0f, 0.0f, i, 1.0f, 1.0f, 1.0f, 1.0f));
-		grid.push_back(Vertex(100.0f, 0.0f, i, 1.0f, 1.0f, 1.0f, 1.0f));
+		grid.push_back(Vertex(-x_z_plane_length, 0.0f, i, 1.0f, 1.0f, 1.0f, 1.0f));
+		grid.push_back(Vertex(x_z_plane_length, 0.0f, i, 1.0f, 1.0f, 1.0f, 1.0f));
 
 		// columns
-		grid.push_back(Vertex(i, 0.0f, -100.0f, 0.0f, 1.0f, 0.0f, 1.0f)); // negative z is green
-		grid.push_back(Vertex(i, 0.0f, 100.0f, 0.0f, 0.0f, 1.0f, 1.0f)); // positive z is blue
+		grid.push_back(Vertex(i, 0.0f, -x_z_plane_length, 0.0f, 1.0f, 0.0f, 1.0f)); // negative z is green
+		grid.push_back(Vertex(i, 0.0f, x_z_plane_length, 0.0f, 0.0f, 1.0f, 1.0f)); // positive z is blue
 	}
 
-	// y plane
-	for (float i = -100.0f; i < 100.0f; i++) {
+	// x-y plane
+	for (float i = -x_y_plane_length; i < x_y_plane_length; i++) {
 		// rows
-		grid.push_back(Vertex(-100.0f, i, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f));
-		grid.push_back(Vertex(100.0f, i, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f));
+		grid.push_back(Vertex(-x_y_plane_length, i, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f));
+		grid.push_back(Vertex(x_y_plane_length, i, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f));
 
 		// columns
-		grid.push_back(Vertex(i, -100.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f));
-		grid.push_back(Vertex(i, 100.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f));
+		grid.push_back(Vertex(i, -x_y_plane_length, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f));
+		grid.push_back(Vertex(i, x_y_plane_length, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f));
 	}
 
 	gridVertices = std::size(grid);
@@ -401,18 +408,36 @@ void Graphics::prepareScene(void)
 		pDeviceContext->RSSetState(pRasterNormalState.Get());
 	}
 
+	// MUST CALL BEFORE DRAWING OR ALL VERTICES WILL BE OFF BY AT LEAST 1 FRAME
+	camera.update();
+
 	// world grid
 	if (shouldDrawGrid) {
 		drawGrid();
 	}
 
-	/*
-		We pass the Camera's view and projection matrix to the models
-		Every mesh is drawn with the view & projection matrix applied to it's internally stored world matrix
-	*/
-	camera.update();
+	// world terrain
+	if (shouldDrawTerrain) {
+		worldHandler->draw(camera.getView(), camera.getProjection());
+	}
+
+	// draw model
 	model_1.draw(camera.getView(), camera.getProjection());
 
+	return;
+}
+
+// terrain control
+void Graphics::setDrawTerrain(bool on_off) noexcept
+{
+	shouldDrawTerrain = on_off;
+	return;
+}
+
+
+void Graphics::toggleDrawTerrain(void) noexcept
+{
+	shouldDrawTerrain = !shouldDrawTerrain;
 	return;
 }
 
